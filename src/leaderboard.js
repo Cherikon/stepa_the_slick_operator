@@ -36,6 +36,13 @@ function mapAuthError(error) {
   if (message.includes('nickname_taken')) return 'Такой ник уже занят. Придумай другой.';
   if (message.includes('invalid_nickname')) return 'Ник должен быть от 3 до 16 символов: буквы, цифры, дефис или нижнее подчеркивание.';
   if (message.includes('email_not_confirmed')) return 'В Supabase включено подтверждение почты. Отключи его в Authentication settings или подтверди email.';
+  if (message.includes('active_run_exists')) return 'У тебя уже есть активный раунд. Обнови страницу и попробуй еще раз.';
+  if (message.includes('run_not_found')) return 'Раунд не найден или уже завершен. Начни новый раунд.';
+  if (message.includes('invalid_run_owner')) return 'Этот раунд принадлежит другому игроку.';
+  if (message.includes('invalid_run_duration')) return 'Подозрительная длительность раунда. Результат не сохранен.';
+  if (message.includes('invalid_input_log')) return 'Данные раунда выглядят подозрительно. Результат не сохранен.';
+  if (message.includes('score_too_high')) return 'Счет выглядит неправдоподобно для такой длительности раунда.';
+  if (message.includes('stale_run')) return 'Раунд слишком старый. Начни новый раунд.';
   return message || 'Что-то пошло не так. Попробуй еще раз.';
 }
 
@@ -144,19 +151,40 @@ export async function signOutPlayer() {
   if (error) throw new Error(mapAuthError(error));
 }
 
-export async function submitBestScore(player, score) {
-  if (!player || score <= (player.bestScore || 0)) return player;
+export async function startScoreRun() {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('start_score_run');
+  if (error) throw new Error(mapAuthError(error));
+
+  const run = Array.isArray(data) ? data[0] : data;
+  if (!run?.run_id || !Number.isFinite(run.seed)) {
+    throw new Error('Не получилось начать защищенный раунд.');
+  }
+
+  return {
+    runId: run.run_id,
+    seed: run.seed,
+    startedAt: run.started_at
+  };
+}
+
+export async function submitBestScore(player, score, runProof = null) {
+  if (!player) return player;
+  if (!runProof && score <= (player.bestScore || 0)) return player;
 
   const client = requireSupabase();
   const { data, error } = await client.rpc('submit_best_score', {
-    input_score: score
+    input_score: score,
+    input_run_id: runProof?.runId || null,
+    input_duration_ms: runProof?.durationMs || null,
+    input_events: runProof?.inputLog || []
   });
 
   if (error) throw new Error(mapAuthError(error));
   const profile = Array.isArray(data) ? data[0] : data;
   return {
     ...player,
-    bestScore: profile?.best_score || score
+    bestScore: profile?.best_score ?? Math.max(player.bestScore || 0, score)
   };
 }
 

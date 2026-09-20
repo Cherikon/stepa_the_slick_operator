@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Global } from '@emotion/react';
-import { ArrowLeft, ArrowRight, CircleDollarSign, Gamepad2, Heart, ListOrdered, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleDollarSign, CircleHelp, Gamepad2, Heart, ListOrdered, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
 import heroImage from './images/hero.png';
 import faviconUrl from './images/favicon.png';
 import fonImage from './images/fon.png';
@@ -38,6 +38,7 @@ import {
   registerPlayer,
   signInPlayer,
   signOutPlayer,
+  startScoreRun,
   submitBestScore
 } from './leaderboard';
 import {
@@ -52,9 +53,14 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   globalStyles,
+  DropGuideList,
   HeroPhoto,
   HERO_HEIGHT,
   HERO_WIDTH,
+  HelpBlock,
+  HelpGrid,
+  HelpList,
+  HelpPanel,
   HeroWrap,
   IntroPanel,
   Lives,
@@ -87,6 +93,8 @@ const HERO_Y = GAME_HEIGHT - HERO_HEIGHT - 20;
 const WIN_SCORE = 300;
 const MAGNET_DURATION = 7;
 const SHIELD_DURATION = 10;
+const COMPACT_GAME_QUERY = '(max-width: 760px), (pointer: coarse)';
+const COMPACT_DROP_SCALE = 1.1;
 const MONEY_TYPES = [
   { kind: 'money', label: '1', value: 1, image: money1Image, size: 58, color: '#57d68d', weight: 30 },
   { kind: 'money', label: '5', value: 5, image: money5Image, size: 64, color: '#3ec5ff', weight: 18 },
@@ -95,25 +103,52 @@ const MONEY_TYPES = [
 ];
 const PROBLEM_TYPES = [
   { kind: 'problem', label: 'ОТЗЫВ', image: reviewImage, color: '#ff6b6b', size: 64, weight: 5 },
-  { kind: 'problem', label: 'ТРУБА', image: homelessImage, color: '#0ea5e9', size: 64, weight: 5 },
+  { kind: 'problem', label: 'БОМЖ', image: homelessImage, color: '#0ea5e9', size: 64, weight: 5 },
   { kind: 'problem', label: 'НАЛОГ', image: taxImage, color: '#f97316', size: 64, weight: 5 },
   { kind: 'problem', label: 'ШТРАФ', image: penaltyImage, color: '#a855f7', size: 64, weight: 5 },
   { kind: 'problem', label: 'ВОЕНКОМ', image: voenkomImage, color: '#64748b', size: 64, weight: 5 },
   { kind: 'problem', label: 'FPV', image: fpvImage, color: '#ef4444', size: 64, weight: 5 },
   { kind: 'problem', label: 'ПОНОС', image: ponosImage, color: '#8b5a2b', size: 64, weight: 5 }
 ];
-const HEART_TYPE = { kind: 'heart', label: 'ЖИЗНЬ', image: lifeImage, color: '#ff5d8f', size: 58, weight: 7 };
-const MAGNET_TYPE = { kind: 'magnet', label: 'МАГНИТ', image: magnetImage, color: '#5ee7ff', size: 62, weight: 3 };
-const SHIELD_TYPE = { kind: 'shield', label: 'ЩИТ', image: shieldImage, color: '#9aff6b', size: 62, weight: 3 };
+const HEART_TYPE = { kind: 'heart', label: 'ЖИЗНЬ', image: lifeImage, color: '#ff5d8f', size: 58, weight: 5 };
+const MAGNET_TYPE = { kind: 'magnet', label: 'МАГНИТ', image: magnetImage, color: '#5ee7ff', size: 64, weight: 0.5 };
+const SHIELD_TYPE = { kind: 'shield', label: 'ЩИТ', image: shieldImage, color: '#9aff6b', size: 64, weight: 0.5 };
 const DROP_TYPES = [...MONEY_TYPES, ...PROBLEM_TYPES, HEART_TYPE, MAGNET_TYPE, SHIELD_TYPE];
+const MONEY_GUIDE_ITEMS = MONEY_TYPES.map((item) => ({
+  label: `${item.label} очк${item.value === 1 ? 'о' : item.value < 5 ? 'а' : 'ов'}`,
+  image: item.image,
+  description: `Добавляет ${item.value} к счету.`
+}));
+const PROBLEM_GUIDE_ITEMS = PROBLEM_TYPES.map((item) => ({
+  label: item.label,
+  image: item.image,
+  description: {
+    БОМЖ: 'В твою студию прокрался бомж.',
+    ОТЗЫВ: 'Посетители студии оставили негативный отзыв.',
+    НАЛОГ: 'Есть время разбрасывать камни, а есть - платить налоги.',
+    ВОЕНКОМ: 'По плоскостопии отмазаться не вышло :(',
+    ПОНОС: 'Ты съел вкусный буррито, но твой желудок так не считает.',
+    ШТРАФ: 'Фотофон не закрепил, ученика перенес, инспектор уже выписывает штраф.',
+    FPV: 'Ну тут без комментариев.'
+  }[item.label] || 'Снимает одну жизнь.'
+}));
+const BONUS_GUIDE_ITEMS = [
+  { label: HEART_TYPE.label, image: HEART_TYPE.image, description: 'Восстанавливает одну жизнь, но не выше трех.' },
+  { label: MAGNET_TYPE.label, image: MAGNET_TYPE.image, description: `Притягивает деньги ${MAGNET_DURATION} секунд.` },
+  { label: SHIELD_TYPE.label, image: SHIELD_TYPE.image, description: `Один раз спасает от проблемы в течение ${SHIELD_DURATION} секунд.` }
+];
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
 function weightedRandomItem(items) {
+  return weightedRandomItemWithRandom(items, Math.random);
+}
+
+function weightedRandomItemWithRandom(items, random) {
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = random() * totalWeight;
 
   for (const item of items) {
     roll -= item.weight;
@@ -121,6 +156,30 @@ function weightedRandomItem(items) {
   }
 
   return items[items.length - 1];
+}
+
+function createSeededRandom(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value += 0x6D2B79F5;
+    let next = value;
+    next = Math.imul(next ^ (next >>> 15), next | 1);
+    next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function createId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const values = crypto.getRandomValues(new Uint32Array(2));
+    return `${Date.now().toString(36)}-${values[0].toString(36)}-${values[1].toString(36)}`;
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getLossMessage(score) {
@@ -163,21 +222,21 @@ function isTextInputTarget(target) {
   );
 }
 
-function createDrop(level) {
-  const type = weightedRandomItem(DROP_TYPES);
+function createDrop(level, sizeScale = 1, random = Math.random) {
+  const type = weightedRandomItemWithRandom(DROP_TYPES, random);
   const kind = type.kind;
-  const size = type.size || 54;
+  const size = Math.round((type.size || 54) * sizeScale);
 
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     kind,
     type,
-    x: Math.random() * (GAME_WIDTH - size - 24) + 12,
-    y: -size - Math.random() * 90,
+    x: random() * (GAME_WIDTH - size - 24) + 12,
+    y: -size - random() * 90,
     size,
-    speed: (120 + level * 18 + Math.random() * 56) * (type.speedMultiplier || 1),
-    rotation: Math.random() * 80 - 40,
-    spin: Math.random() > 0.5 ? 1 : -1
+    speed: (120 + level * 18 + random() * 56) * (type.speedMultiplier || 1),
+    rotation: random() * 80 - 40,
+    spin: random() > 0.5 ? 1 : -1
   };
 }
 
@@ -211,6 +270,9 @@ function App() {
   const [magnetTime, setMagnetTime] = useState(0);
   const [shieldTime, setShieldTime] = useState(0);
   const [stageScale, setStageScale] = useState(1);
+  const [isCompactGame, setIsCompactGame] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(COMPACT_GAME_QUERY).matches
+  ));
   const keysRef = useRef(new Set());
   const touchDirectionRef = useRef(0);
   const rafRef = useRef(null);
@@ -218,14 +280,39 @@ function App() {
   const lastTimeRef = useRef(0);
   const spawnTimerRef = useRef(0);
   const heroXRef = useRef((GAME_WIDTH - HERO_WIDTH) / 2);
+  const scoreRef = useRef(0);
   const levelRef = useRef(0);
   const unlimitedModeRef = useRef(false);
   const lastSubmittedScoreRef = useRef(0);
   const magnetTimeRef = useRef(0);
   const shieldTimeRef = useRef(0);
+  const compactDropScaleRef = useRef(isCompactGame ? COMPACT_DROP_SCALE : 1);
+  const currentRunRef = useRef(null);
+  const runStartTimeRef = useRef(0);
+  const inputLogRef = useRef([]);
+  const seededRandomRef = useRef(Math.random);
+  const isSubmittingRunRef = useRef(false);
 
   const level = Math.floor(score / 10);
   const progress = clamp(score / WIN_SCORE, 0, 1);
+
+  const appendInputLog = useCallback((moveDirection, source) => {
+    const runStartTime = runStartTimeRef.current;
+    if (!runStartTime) return;
+
+    const elapsedMs = Math.max(0, Math.round(performance.now() - runStartTime));
+    const lastEntry = inputLogRef.current[inputLogRef.current.length - 1];
+    if (lastEntry?.direction === moveDirection && lastEntry?.source === source) return;
+
+    inputLogRef.current = [
+      ...inputLogRef.current.slice(-799),
+      {
+        t: elapsedMs,
+        direction: moveDirection,
+        source
+      }
+    ];
+  }, []);
 
   const refreshLeaderboard = useCallback(async () => {
     setIsLoadingLeaders(true);
@@ -242,6 +329,23 @@ function App() {
   useEffect(() => {
     levelRef.current = level;
   }, [level]);
+
+  useEffect(() => {
+    compactDropScaleRef.current = isCompactGame ? COMPACT_DROP_SCALE : 1;
+  }, [isCompactGame]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(COMPACT_GAME_QUERY);
+    const updateCompactMode = () => setIsCompactGame(mediaQuery.matches);
+
+    updateCompactMode();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateCompactMode);
+      return () => mediaQuery.removeEventListener('change', updateCompactMode);
+    }
+    mediaQuery.addListener(updateCompactMode);
+    return () => mediaQuery.removeListener(updateCompactMode);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -285,7 +389,7 @@ function App() {
     if (!element) return undefined;
 
     const updateScale = () => {
-      const nextScale = element.clientWidth / GAME_WIDTH;
+      const nextScale = Math.min(element.clientWidth / GAME_WIDTH, element.clientHeight / GAME_HEIGHT);
       setStageScale((currentScale) => (
         Number.isFinite(nextScale) && nextScale > 0
           ? nextScale
@@ -299,14 +403,60 @@ function App() {
     return () => observer.disconnect();
   }, [activeView]);
 
-  const resetGame = useCallback(() => {
+  const submitCurrentBest = useCallback(async (finalScore) => {
+    if (!player || isSubmittingRunRef.current) return false;
+    const activeRun = currentRunRef.current;
+    if (!activeRun || !runStartTimeRef.current) return true;
+
+    isSubmittingRunRef.current = true;
+    lastSubmittedScoreRef.current = finalScore;
+    const runProof = {
+      runId: activeRun.runId,
+      durationMs: Math.max(0, Math.round(performance.now() - runStartTimeRef.current)),
+      inputLog: inputLogRef.current
+    };
+    try {
+      const updatedPlayer = await submitBestScore(player, finalScore, runProof);
+      currentRunRef.current = null;
+      runStartTimeRef.current = 0;
+      setPlayer(updatedPlayer);
+      if (activeView === 'leaders') refreshLeaderboard();
+      return true;
+    } catch (error) {
+      setLeaderboardError(error.message || 'Не получилось обновить лучший результат.');
+      return false;
+    } finally {
+      isSubmittingRunRef.current = false;
+    }
+  }, [activeView, player, refreshLeaderboard]);
+
+  const resetGame = useCallback(async () => {
     if (!player) {
       setPhase('auth');
       return;
     }
+
+    if (phase === 'won' && currentRunRef.current) {
+      const isSaved = await submitCurrentBest(scoreRef.current);
+      if (!isSaved) return;
+    }
+
+    let run;
+    setLeaderboardError('');
+    try {
+      run = await startScoreRun();
+    } catch (error) {
+      setLeaderboardError(error.message || 'Не получилось начать защищенный раунд.');
+      return;
+    }
+
     startBackgroundMusic();
     keysRef.current.clear();
     touchDirectionRef.current = 0;
+    currentRunRef.current = run;
+    seededRandomRef.current = createSeededRandom(run.seed);
+    inputLogRef.current = [{ t: 0, direction: 0, source: 'start' }];
+    scoreRef.current = 0;
     setScore(0);
     setLives(MAX_LIVES);
     setDrops([]);
@@ -326,10 +476,11 @@ function App() {
     unlimitedModeRef.current = false;
     lastSubmittedScoreRef.current = 0;
     spawnTimerRef.current = 0;
-    lastTimeRef.current = performance.now();
+    runStartTimeRef.current = performance.now();
+    lastTimeRef.current = runStartTimeRef.current;
     setPhase('playing');
     requestAnimationFrame(() => stageFrameRef.current?.focus());
-  }, [player]);
+  }, [phase, player, submitCurrentBest]);
 
   const continueGame = useCallback(() => {
     unlimitedModeRef.current = true;
@@ -389,20 +540,8 @@ function App() {
     }
   }, []);
 
-  const submitCurrentBest = useCallback(async (finalScore) => {
-    if (!player || finalScore <= lastSubmittedScoreRef.current) return;
-    lastSubmittedScoreRef.current = finalScore;
-    try {
-      const updatedPlayer = await submitBestScore(player, finalScore);
-      setPlayer(updatedPlayer);
-      if (activeView === 'leaders') refreshLeaderboard();
-    } catch (error) {
-      setLeaderboardError(error.message || 'Не получилось обновить лучший результат.');
-    }
-  }, [activeView, player, refreshLeaderboard]);
-
   useEffect(() => {
-    if (activeView === 'leaders' && phase === 'playing') {
+    if (activeView !== 'play' && phase === 'playing') {
       keysRef.current.clear();
       touchDirectionRef.current = 0;
       setDirection(0);
@@ -450,6 +589,7 @@ function App() {
         event.preventDefault();
         keysRef.current.add(moveDirection < 0 ? 'left' : 'right');
         if (!event.repeat && phase === 'playing') {
+          appendInputLog(moveDirection, 'keyboard');
           setDirection(moveDirection);
           setHeroX((current) => {
             const nextX = clamp(current + moveDirection * 34, 0, GAME_WIDTH - HERO_WIDTH);
@@ -473,11 +613,15 @@ function App() {
       const moveDirection = getControlDirection(event);
       if (moveDirection !== 0) {
         keysRef.current.delete(moveDirection < 0 ? 'left' : 'right');
+        const hasLeft = keysRef.current.has('left');
+        const hasRight = keysRef.current.has('right');
+        appendInputLog(hasRight ? 1 : hasLeft ? -1 : 0, 'keyboard');
       }
     };
     const onBlur = () => {
       keysRef.current.clear();
       touchDirectionRef.current = 0;
+      appendInputLog(0, 'blur');
       setDirection(0);
     };
 
@@ -489,7 +633,7 @@ function App() {
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', onBlur);
     };
-  }, [phase, resetGame, togglePause]);
+  }, [appendInputLog, phase, resetGame, togglePause]);
 
   useEffect(() => {
     if (phase !== 'playing') {
@@ -530,7 +674,7 @@ function App() {
 
       spawnTimerRef.current -= delta;
       if (spawnTimerRef.current <= 0) {
-        setDrops((current) => [...current, createDrop(levelRef.current)]);
+        setDrops((current) => [...current, createDrop(levelRef.current, compactDropScaleRef.current, seededRandomRef.current)]);
         spawnTimerRef.current = Math.max(0.38, 0.95 - levelRef.current * 0.045);
       }
 
@@ -601,6 +745,7 @@ function App() {
           playMoneySound();
           setScore((currentScore) => {
             const updated = currentScore + gained;
+            scoreRef.current = updated;
             if (!unlimitedModeRef.current && currentScore < WIN_SCORE && updated >= WIN_SCORE) {
               stopBackgroundMusic();
               setPhase('won');
@@ -630,16 +775,16 @@ function App() {
           playLifeSound();
           magnetTimeRef.current = MAGNET_DURATION;
           setMagnetTime(MAGNET_DURATION);
-          setHeroGlow({ tone: 'magnet', id: crypto.randomUUID() });
+          setHeroGlow({ tone: 'magnet', id: createId() });
         }
         if (shieldBonus) {
           playLifeSound();
           shieldTimeRef.current = SHIELD_DURATION;
           setShieldTime(SHIELD_DURATION);
-          setHeroGlow({ tone: 'shield', id: crypto.randomUUID() });
+          setHeroGlow({ tone: 'shield', id: createId() });
         }
         if (caughtGoldMoney) {
-          setHeroGlow({ tone: 'gold', id: crypto.randomUUID() });
+          setHeroGlow({ tone: 'gold', id: createId() });
         }
         if (caughtMoney || caughtHeart || magnetBonus || shieldBonus) {
           setBonusText(
@@ -666,10 +811,10 @@ function App() {
   }, [phase]);
 
   useEffect(() => {
-    if (phase === 'won' || phase === 'lost') {
-      submitCurrentBest(score);
+    if (phase === 'lost') {
+      submitCurrentBest(scoreRef.current);
     }
-  }, [phase, score, submitCurrentBest]);
+  }, [phase, submitCurrentBest]);
 
   useEffect(() => {
     if (phase === 'lost' && score >= WIN_SCORE && !defeatQuote) {
@@ -685,6 +830,7 @@ function App() {
     event.preventDefault();
     if (phase !== 'playing') return;
     touchDirectionRef.current = moveDirection;
+    appendInputLog(moveDirection, 'touch');
     setDirection(moveDirection);
     stageFrameRef.current?.focus();
   };
@@ -692,6 +838,7 @@ function App() {
   const stopMobileMove = (event) => {
     event.preventDefault();
     touchDirectionRef.current = 0;
+    appendInputLog(0, 'touch');
     setDirection(0);
   };
 
@@ -754,9 +901,9 @@ function App() {
               </PrimaryButton>
             </ButtonRow>
           </AuthForm>
-          {authError && <ControlsLine>{authError}</ControlsLine>}
+          {authError && <ControlsLine $mobileVisible>{authError}</ControlsLine>}
           {!isLeaderboardConfigured && (
-            <ControlsLine>Добавь VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env, чтобы включить аккаунты.</ControlsLine>
+            <ControlsLine $mobileVisible>Добавь VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env, чтобы включить аккаунты.</ControlsLine>
           )}
         </IntroPanel>
       );
@@ -773,7 +920,7 @@ function App() {
             Наберешь 300 очков — получишь приз.
           </p>
           <ControlsLine>Управление: стрелки или A/D.</ControlsLine>
-          <PrimaryButton onClick={resetGame}><Play size={20} /> Играть как {player.nickname}</PrimaryButton>
+          <PrimaryButton onClick={resetGame} $big><Play size={20} /> Играть как {player.nickname}</PrimaryButton>
         </IntroPanel>
       );
     }
@@ -784,7 +931,7 @@ function App() {
           <Pause size={42} />
           <h2>Пауза</h2>
           <p>Степа замер, деньги зависли, проблемы делают вид, что их тут не было.</p>
-          <PrimaryButton onClick={togglePause}><Play size={20} /> Продолжить</PrimaryButton>
+          <PrimaryButton onClick={togglePause} $big><Play size={20} /> Продолжить</PrimaryButton>
         </ResultPanel>
       );
     }
@@ -813,11 +960,11 @@ function App() {
           </p>
           {won ? (
             <ButtonRow>
-              <PrimaryButton onClick={continueGame}><Play size={20} /> Играть дальше</PrimaryButton>
-              <PrimaryButton onClick={resetGame}><RotateCcw size={20} /> Новый раунд</PrimaryButton>
+              <PrimaryButton onClick={continueGame} $big><Play size={20} /> Играть дальше</PrimaryButton>
+              <PrimaryButton onClick={resetGame} $big><RotateCcw size={20} /> Новый раунд</PrimaryButton>
             </ButtonRow>
           ) : (
-            <PrimaryButton onClick={resetGame}><RotateCcw size={20} /> Еще раунд</PrimaryButton>
+            <PrimaryButton onClick={resetGame} $big><RotateCcw size={20} /> Еще раунд</PrimaryButton>
           )}
         </ResultPanel>
       );
@@ -852,6 +999,9 @@ function App() {
               <NavButton type="button" $active={activeView === 'play'} onClick={() => setActiveView('play')}>
                 <Gamepad2 size={18} /> Играть
               </NavButton>
+              <NavButton type="button" $active={activeView === 'help'} onClick={() => setActiveView('help')}>
+                <CircleHelp size={18} /> Как играть
+              </NavButton>
               <NavButton type="button" $active={activeView === 'leaders'} onClick={() => setActiveView('leaders')}>
                 <ListOrdered size={18} /> Результаты
               </NavButton>
@@ -885,6 +1035,16 @@ function App() {
                 </NavButton>
                 <NavButton
                   type="button"
+                  $active={activeView === 'help'}
+                  onClick={() => {
+                    setActiveView('help');
+                    setIsNavMenuOpen(false);
+                  }}
+                >
+                  <CircleHelp size={18} /> Как играть
+                </NavButton>
+                <NavButton
+                  type="button"
                   $active={activeView === 'leaders'}
                   onClick={() => {
                     setActiveView('leaders');
@@ -908,7 +1068,77 @@ function App() {
             )}
           </NavBar>
 
-          {activeView === 'leaders' ? (
+          {activeView === 'help' ? (
+            <HelpPanel>
+              <Badge><CircleHelp size={18} /> Инструкция</Badge>
+              <h1>Как играть</h1>
+              <p>
+                Управляй Степой, лови деньги и бонусы, уворачивайся от проблем. Цель обычного раунда - набрать {WIN_SCORE} очков.
+                После этого можно забрать победу или продолжить играть дальше.
+              </p>
+              <HelpGrid>
+                <HelpBlock>
+                  <h2>Управление</h2>
+                  <HelpList>
+                    <li><strong>Компьютер:</strong> стрелки влево/вправо или клавиши A/D.</li>
+                    <li><strong>Телефон:</strong> держи левую или правую кнопку под игровым полем.</li>
+                    <li><strong>Пауза:</strong> кнопка в верхней панели или Esc на клавиатуре.</li>
+                  </HelpList>
+                </HelpBlock>
+                <HelpBlock>
+                  <h2>Правила</h2>
+                  <HelpList>
+                    <li>Деньги увеличивают счет на свой номинал.</li>
+                    <li>Каждая проблема снимает одну жизнь. Всего жизней: {MAX_LIVES}.</li>
+                    <li>С ростом счета предметы падают быстрее, а новые появляются чаще.</li>
+                    <li>Лучший результат сохраняется в таблицу после победы или поражения.</li>
+                  </HelpList>
+                </HelpBlock>
+              </HelpGrid>
+              <HelpBlock>
+                <h2>Деньги</h2>
+                <DropGuideList>
+                  {MONEY_GUIDE_ITEMS.map((item) => (
+                    <li key={item.label}>
+                      <img src={item.image} alt="" aria-hidden="true" />
+                      <div>
+                        <strong>{item.label}</strong>
+                        <span>{item.description}</span>
+                      </div>
+                    </li>
+                  ))}
+                </DropGuideList>
+              </HelpBlock>
+              <HelpBlock>
+                <h2>Проблемы</h2>
+                <DropGuideList>
+                  {PROBLEM_GUIDE_ITEMS.map((item) => (
+                    <li key={item.label}>
+                      <img src={item.image} alt="" aria-hidden="true" />
+                      <div>
+                        <strong>{item.label}</strong>
+                        <span>{item.description}</span>
+                      </div>
+                    </li>
+                  ))}
+                </DropGuideList>
+              </HelpBlock>
+              <HelpBlock>
+                <h2>Бонусы</h2>
+                <DropGuideList>
+                  {BONUS_GUIDE_ITEMS.map((item) => (
+                    <li key={item.label}>
+                      <img src={item.image} alt="" aria-hidden="true" />
+                      <div>
+                        <strong>{item.label}</strong>
+                        <span>{item.description}</span>
+                      </div>
+                    </li>
+                  ))}
+                </DropGuideList>
+              </HelpBlock>
+            </HelpPanel>
+          ) : activeView === 'leaders' ? (
             <LeaderboardPanel>
               <Badge><Trophy size={18} /> Лучшие охотники за деньгами</Badge>
               {isLoadingLeaders ? (
@@ -919,13 +1149,20 @@ function App() {
                 <p>Пока пусто. Самое время вписать свое имя в историю.</p>
               ) : (
                 <LeaderboardList>
-                  {leaders.map((leader, index) => (
-                    <li key={leader.nickname}>
+                  {leaders.map((leader, index) => {
+                    const isCurrentPlayer = player?.nickname?.toLowerCase() === leader.nickname.toLowerCase();
+                    return (
+                    <li
+                      key={leader.nickname}
+                      data-current={isCurrentPlayer ? 'true' : undefined}
+                      aria-label={isCurrentPlayer ? `${index + 1}. ${leader.nickname}, ${leader.best_score} очков, это ты` : undefined}
+                    >
                       <span>{index + 1}</span>
-                      <strong>{leader.nickname}</strong>
+                      <strong>{leader.nickname}{isCurrentPlayer ? ' · ты' : ''}</strong>
                       <b>{leader.best_score}</b>
                     </li>
-                  ))}
+                    );
+                  })}
                 </LeaderboardList>
               )}
               {player && <p>Ты играешь как {player.nickname}. Лучший счет: {player.bestScore || 0}.</p>}
@@ -966,7 +1203,7 @@ function App() {
             onPointerDown={focusStage}
           >
             <Stage
-              style={{ transform: `scale(${stageScale})` }}
+              style={{ transform: `translate(-50%, -50%) scale(${stageScale})` }}
               $backgroundImage={fonImage}
             >
               {(magnetTime > 0 || shieldTime > 0) && (

@@ -18,6 +18,10 @@ export const globalStyles = css`
     min-height: 100%;
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     margin: 0;
     font-family: "Press Start 2P", "Courier New", "Lucida Console", Monaco, monospace;
@@ -44,11 +48,11 @@ export const globalStyles = css`
 export const Page = styled.main`
   min-height: 100vh;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-items: start;
   padding: 24px;
 
   @media (max-width: 760px) {
-    place-items: start center;
     padding: 8px;
   }
 `;
@@ -346,14 +350,14 @@ export const MobileControlButton = styled.button`
   }
 
   @media (max-width: 760px) {
-    min-height: 56px;
+    min-height: 68px;
     border-width: 4px;
     box-shadow: 4px 4px 0 #050711;
     font-size: 1.55rem;
 
     svg {
-      width: 28px;
-      height: 28px;
+      width: 34px;
+      height: 34px;
     }
   }
 
@@ -366,8 +370,8 @@ export const MobileControlButton = styled.button`
 
 export const Stage = styled.div`
   position: absolute;
-  left: 0;
-  top: 0;
+  left: 50%;
+  top: 50%;
   width: ${GAME_WIDTH}px;
   height: ${GAME_HEIGHT}px;
   overflow: hidden;
@@ -375,7 +379,7 @@ export const Stage = styled.div`
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  transform-origin: left top;
+  transform-origin: center center;
 `;
 
 export const DropLayer = styled.div`
@@ -579,7 +583,7 @@ export const IntroPanel = styled.div`
   h1 {
     max-width: 560px;
     margin: 0;
-    font-size: clamp(1.6rem, 5.2vw, 3rem);
+    font-size: clamp(1.6rem, 5.2vw, 2.5rem);
     line-height: 1.15;
     letter-spacing: 0;
     text-shadow: 4px 4px 0 #000;
@@ -591,6 +595,32 @@ export const IntroPanel = styled.div`
     color: #d7f7ff;
     font-size: clamp(0.68rem, 1.45vw, 0.88rem);
     line-height: 1.9;
+  }
+
+  @media (max-width: 760px) {
+    align-content: start;
+    gap: 12px;
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background:
+      linear-gradient(90deg, rgba(16, 22, 41, 0.98), rgba(16, 22, 41, 0.92)),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 6px);
+
+    h1 {
+      font-size: 1.7rem;
+      line-height: 1.25;
+      text-shadow: 3px 3px 0 #000;
+    }
+
+    p {
+      font-size: 1.1rem;
+      line-height: 1.65;
+    }
+
+    > button {
+      margin-top: 16px;
+    }
   }
 `;
 
@@ -609,6 +639,34 @@ export const ResultPanel = styled(IntroPanel)`
     font-size: clamp(1.5rem, 5vw, 3.3rem);
     line-height: 1.16;
     letter-spacing: 0;
+  }
+
+  @media (max-width: 760px) {
+    gap: 14px;
+
+    h2 {
+      font-size: 1.9rem;
+      line-height: 1.22;
+    }
+
+    p {
+      font-size: 1.24rem;
+      line-height: 1.5;
+    }
+  }
+
+  @media (max-width: 760px) and (max-height: 700px) {
+    gap: 10px;
+
+    h2 {
+      font-size: 1.55rem;
+      line-height: 1.2;
+    }
+
+    p {
+      font-size: 1rem;
+      line-height: 1.45;
+    }
   }
 `;
 
@@ -635,12 +693,35 @@ export const AuthForm = styled.form`
   input:focus {
     border-color: #fff26a;
   }
+
+  @media (max-width: 760px) {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+
+    input {
+      min-height: 54px;
+      width: 100%;
+      padding: 13px 12px;
+      border-width: 3px;
+      box-shadow: 4px 4px 0 #000;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+  }
 `;
 
 export const ButtonRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+
+  @media (max-width: 760px) {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+    margin-top: 12px;
+  }
 `;
 
 export const LeaderboardPanel = styled.section`
@@ -691,6 +772,18 @@ export const LeaderboardList = styled.ol`
     box-shadow: 4px 4px 0 #050711;
   }
 
+  li[data-current="true"] {
+    border-color: #fff26a;
+    background:
+      linear-gradient(90deg, rgba(255, 242, 106, 0.2), rgba(23, 27, 50, 0.96)),
+      #171b32;
+    box-shadow: 4px 4px 0 #050711, inset 0 0 0 2px #fff26a;
+  }
+
+  li[data-current="true"] strong {
+    color: #ffffff;
+  }
+
   span,
   b {
     color: #fff26a;
@@ -718,6 +811,115 @@ export const LeaderboardList = styled.ol`
   }
 `;
 
+export const HelpPanel = styled(LeaderboardPanel)`
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+    color: #fff26a;
+    font-size: clamp(1.3rem, 3.8vw, 2.25rem);
+    line-height: 1.2;
+    text-shadow: 3px 3px 0 #000;
+  }
+
+  h2 {
+    margin: 0;
+    color: #78d6ff;
+    font-size: clamp(0.76rem, 1.8vw, 1rem);
+    line-height: 1.45;
+  }
+`;
+
+export const HelpGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+`;
+
+export const HelpBlock = styled.section`
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 3px solid #f8f4d8;
+  background: #171b32;
+  box-shadow: 4px 4px 0 #050711;
+`;
+
+export const HelpList = styled.ul`
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    color: #d7f7ff;
+    font-size: clamp(0.58rem, 1.25vw, 0.72rem);
+    line-height: 1.65;
+  }
+
+  strong {
+    color: #fff26a;
+  }
+`;
+
+export const DropGuideList = styled.ul`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+    padding: 8px;
+    border: 2px solid #414765;
+    background: #101629;
+  }
+
+  img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    filter:
+      drop-shadow(1px 0 0 #ffffff)
+      drop-shadow(-1px 0 0 #ffffff)
+      drop-shadow(0 1px 0 #ffffff)
+      drop-shadow(0 -1px 0 #ffffff);
+  }
+
+  strong {
+    display: block;
+    color: #fff26a;
+    font-size: 0.58rem;
+    line-height: 1.35;
+  }
+
+  span {
+    display: block;
+    margin-top: 4px;
+    color: #d7f7ff;
+    font-size: 0.52rem;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 export const Badge = styled.div`
   display: inline-flex;
   align-items: center;
@@ -736,9 +938,14 @@ export const ControlsLine = styled.div`
   font-weight: 700;
   font-size: clamp(0.62rem, 1.35vw, 0.82rem);
   line-height: 1.7;
+  max-width: 560px;
 
   @media (max-width: 760px) {
-    display: none;
+    display: ${({ $mobileVisible }) => ($mobileVisible ? 'block' : 'none')};
+    width: 100%;
+    font-size: 0.58rem;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
   }
 `;
 
@@ -771,5 +978,19 @@ export const PrimaryButton = styled.button`
   &:disabled {
     opacity: 0.62;
     cursor: wait;
+  }
+
+  @media (max-width: 760px) {
+    width: 100%;
+    min-height: 64px;
+    padding: 15px 14px;
+    border-width: 3px;
+    box-shadow: 4px 4px 0 #000;
+    font-size: ${({ $big }) => ($big ? '1.5rem' : '0.74rem')};
+
+    svg {
+      width: ${({ $big }) => ($big ? '32px' : '20px')};
+      height: ${({ $big }) => ($big ? '32px' : '20px')};
+    }
   }
 `;

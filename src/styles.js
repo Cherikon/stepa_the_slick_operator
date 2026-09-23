@@ -283,7 +283,8 @@ export const ProgressFill = styled.div`
 
 export const StageFrame = styled.div`
   position: relative;
-  width: 100%;
+  width: min(100%, calc((100vh - 130px) * ${GAME_WIDTH} / ${GAME_HEIGHT}));
+  margin-inline: auto;
   aspect-ratio: ${GAME_WIDTH} / ${GAME_HEIGHT};
   min-height: 430px;
   max-height: calc(100vh - 130px);
@@ -447,6 +448,31 @@ export const HeroPhoto = styled.img`
   object-position: center bottom;
   filter: drop-shadow(6px 8px 0 rgba(0, 0, 0, 0.32));
   transition: transform 120ms ease;
+`;
+
+export const PonosGlow = styled.div`
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: -2px;
+  width: 226px;
+  height: 78px;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, rgba(166, 94, 38, 0.96) 0 20%, rgba(116, 65, 28, 0.8) 42%, rgba(67, 38, 18, 0) 76%);
+  filter: blur(3px);
+  box-shadow:
+    0 0 22px rgba(166, 94, 38, 0.82),
+    0 0 46px rgba(92, 51, 22, 0.62);
+  animation: ponos-ground-glow 5000ms ease-out;
+
+  @keyframes ponos-ground-glow {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.55); }
+    8% { opacity: 1; transform: translateX(-50%) scale(1.12); }
+    72% { opacity: 0.94; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+  }
 `;
 
 export const HeroWrap = styled.div`

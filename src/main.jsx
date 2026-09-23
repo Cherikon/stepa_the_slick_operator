@@ -4,9 +4,11 @@ import { Global } from '@emotion/react';
 import { ArrowLeft, ArrowRight, CircleDollarSign, CircleHelp, Gamepad2, Heart, ListOrdered, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
 import heroImage from './images/hero.png';
 import faviconUrl from './images/favicon.png';
+import beerImage from './images/beer.png';
 import fonImage from './images/fon.png';
 import fpvImage from './images/fpv.png';
 import homelessImage from './images/homeless.png';
+import instaImage from './images/insta.png';
 import lifeImage from './images/life.png';
 import goldMoneyImage from './images/goldMoney.png';
 import magnetImage from './images/manget.png';
@@ -20,6 +22,7 @@ import shieldImage from './images/shield.png';
 import taxImage from './images/tax.png';
 import voenkomImage from './images/voenkom.png';
 import {
+  playBeerSound,
   playGameOverSound,
   playLifeSound,
   playMoneySound,
@@ -55,6 +58,7 @@ import {
   globalStyles,
   DropGuideList,
   HeroPhoto,
+  PonosGlow,
   HERO_HEIGHT,
   HERO_WIDTH,
   HelpBlock,
@@ -108,14 +112,16 @@ const PROBLEM_TYPES = [
   { kind: 'problem', label: 'ШТРАФ', image: penaltyImage, color: '#a855f7', size: 64, weight: 5 },
   { kind: 'problem', label: 'ВОЕНКОМ', image: voenkomImage, color: '#64748b', size: 64, weight: 5 },
   { kind: 'problem', label: 'FPV', image: fpvImage, color: '#ef4444', size: 64, weight: 5 },
+  { kind: 'problem', label: 'ИНСТА', image: instaImage, color: '#e1306c', size: 64, weight: 5 },
   { kind: 'problem', label: 'ПОНОС', image: ponosImage, color: '#8b5a2b', size: 64, weight: 5 }
 ];
 const HEART_TYPE = { kind: 'heart', label: 'ЖИЗНЬ', image: lifeImage, color: '#ff5d8f', size: 58, weight: 5 };
 const MAGNET_TYPE = { kind: 'magnet', label: 'МАГНИТ', image: magnetImage, color: '#5ee7ff', size: 64, weight: 0.5 };
 const SHIELD_TYPE = { kind: 'shield', label: 'ЩИТ', image: shieldImage, color: '#9aff6b', size: 64, weight: 0.5 };
-const DROP_TYPES = [...MONEY_TYPES, ...PROBLEM_TYPES, HEART_TYPE, MAGNET_TYPE, SHIELD_TYPE];
+const BEER_TYPE = { kind: 'beer', label: 'ЖИДКОЕ ЗОЛОТО', image: beerImage, color: '#f6c85f', size: 64, weight: 0.5 };
+const DROP_TYPES = [...MONEY_TYPES, ...PROBLEM_TYPES, HEART_TYPE, MAGNET_TYPE, SHIELD_TYPE, BEER_TYPE];
 const MONEY_GUIDE_ITEMS = MONEY_TYPES.map((item) => ({
-  label: `${item.label} очк${item.value === 1 ? 'о' : item.value < 5 ? 'а' : 'ов'}`,
+  label: `${item.label} ОЧК${item.value === 1 ? 'О' : item.value < 5 ? 'А' : 'ОВ'}`,
   image: item.image,
   description: `Добавляет ${item.value} к счету.`
 }));
@@ -127,6 +133,7 @@ const PROBLEM_GUIDE_ITEMS = PROBLEM_TYPES.map((item) => ({
     ОТЗЫВ: 'Посетители студии оставили негативный отзыв.',
     НАЛОГ: 'Есть время разбрасывать камни, а есть - платить налоги.',
     ВОЕНКОМ: 'По плоскостопии отмазаться не вышло :(',
+    ИНСТА: 'Meta заблокировала учетную запись студии.',
     ПОНОС: 'Ты съел вкусный буррито, но твой желудок так не считает.',
     ШТРАФ: 'Фотофон не закрепил, ученика перенес, инспектор уже выписывает штраф.',
     FPV: 'Ну тут без комментариев.'
@@ -135,7 +142,8 @@ const PROBLEM_GUIDE_ITEMS = PROBLEM_TYPES.map((item) => ({
 const BONUS_GUIDE_ITEMS = [
   { label: HEART_TYPE.label, image: HEART_TYPE.image, description: 'Восстанавливает одну жизнь, но не выше трех.' },
   { label: MAGNET_TYPE.label, image: MAGNET_TYPE.image, description: `Притягивает деньги ${MAGNET_DURATION} секунд.` },
-  { label: SHIELD_TYPE.label, image: SHIELD_TYPE.image, description: `Один раз спасает от проблемы в течение ${SHIELD_DURATION} секунд.` }
+  { label: SHIELD_TYPE.label, image: SHIELD_TYPE.image, description: `Один раз спасает от проблемы в течение ${SHIELD_DURATION} секунд.` },
+  { label: BEER_TYPE.label, image: BEER_TYPE.image, description: 'Ничего не дает и не решает проблем, но делает их чуть менее заметными.' }
 ];
 
 function clamp(value, min, max) {
@@ -265,6 +273,7 @@ function App() {
   const [bonusText, setBonusText] = useState('+ в карман');
   const [defeatQuote, setDefeatQuote] = useState('');
   const [heroGlow, setHeroGlow] = useState(null);
+  const [ponosGlowId, setPonosGlowId] = useState(null);
   const [hitPulse, setHitPulse] = useState(0);
   const [healPulse, setHealPulse] = useState(0);
   const [magnetTime, setMagnetTime] = useState(0);
@@ -286,6 +295,7 @@ function App() {
   const lastSubmittedScoreRef = useRef(0);
   const magnetTimeRef = useRef(0);
   const shieldTimeRef = useRef(0);
+  const ponosGlowTimeoutRef = useRef(null);
   const compactDropScaleRef = useRef(isCompactGame ? COMPACT_DROP_SCALE : 1);
   const currentRunRef = useRef(null);
   const runStartTimeRef = useRef(0);
@@ -295,6 +305,12 @@ function App() {
 
   const level = Math.floor(score / 10);
   const progress = clamp(score / WIN_SCORE, 0, 1);
+
+  const showPonosGlow = useCallback(() => {
+    clearTimeout(ponosGlowTimeoutRef.current);
+    setPonosGlowId(createId());
+    ponosGlowTimeoutRef.current = setTimeout(() => setPonosGlowId(null), 5000);
+  }, []);
 
   const appendInputLog = useCallback((moveDirection, source) => {
     const runStartTime = runStartTimeRef.current;
@@ -467,6 +483,8 @@ function App() {
     setBonusText('+ в карман');
     setDefeatQuote('');
     setHeroGlow(null);
+    setPonosGlowId(null);
+    clearTimeout(ponosGlowTimeoutRef.current);
     setHitPulse(0);
     setHealPulse(0);
     setMagnetTime(0);
@@ -554,6 +572,7 @@ function App() {
     return () => {
       stopBackgroundMusic();
       stopMenuMusic();
+      clearTimeout(ponosGlowTimeoutRef.current);
     };
   }, []);
 
@@ -604,7 +623,11 @@ function App() {
       }
       if (event.code === 'Space' && phase !== 'playing' && phase !== 'paused') {
         event.preventDefault();
-        resetGame();
+        if (phase === 'won') {
+          continueGame();
+        } else {
+          resetGame();
+        }
       }
     };
     const onKeyUp = (event) => {
@@ -633,7 +656,7 @@ function App() {
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', onBlur);
     };
-  }, [appendInputLog, phase, resetGame, togglePause]);
+  }, [appendInputLog, continueGame, phase, resetGame, togglePause]);
 
   useEffect(() => {
     if (phase !== 'playing') {
@@ -689,6 +712,8 @@ function App() {
         let caughtGoldMoney = false;
         let caughtProblem = false;
         let caughtHeart = false;
+        let caughtBeer = false;
+        let caughtPonosProblem = false;
 
         for (const drop of current) {
           const heroCenter = heroXRef.current + HERO_WIDTH / 2;
@@ -725,7 +750,10 @@ function App() {
               magnetBonus = true;
             } else if (moved.kind === 'shield') {
               shieldBonus = true;
+            } else if (moved.kind === 'beer') {
+              caughtBeer = true;
             } else {
+              if (moved.type.image === ponosImage) caughtPonosProblem = true;
               if (shieldTimeRef.current > 0) {
                 shieldTimeRef.current = 0;
                 setShieldTime(0);
@@ -771,6 +799,9 @@ function App() {
           setLives((currentLives) => Math.min(MAX_LIVES, currentLives + healed));
           setHealPulse((value) => value + 1);
         }
+        if (caughtBeer) {
+          playBeerSound();
+        }
         if (magnetBonus) {
           playLifeSound();
           magnetTimeRef.current = MAGNET_DURATION;
@@ -785,6 +816,9 @@ function App() {
         }
         if (caughtGoldMoney) {
           setHeroGlow({ tone: 'gold', id: createId() });
+        }
+        if (caughtPonosProblem) {
+          showPonosGlow();
         }
         if (caughtMoney || caughtHeart || magnetBonus || shieldBonus) {
           setBonusText(
@@ -808,7 +842,7 @@ function App() {
 
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [phase]);
+  }, [phase, showPonosGlow]);
 
   useEffect(() => {
     if (phase === 'lost') {
@@ -1248,6 +1282,7 @@ function App() {
               $glow={heroGlow?.tone}
               key={heroGlow?.id || 'hero'}
             >
+                {ponosGlowId && <PonosGlow key={ponosGlowId} aria-hidden="true" />}
                 <HeroPhoto src={heroImage} alt="Персонаж Степа" draggable="false" />
                 <PocketPulse key={catchPulse}>{bonusText}</PocketPulse>
               </HeroWrap>

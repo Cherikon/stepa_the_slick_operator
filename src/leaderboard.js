@@ -153,7 +153,7 @@ export async function signOutPlayer() {
 
 export async function startScoreRun() {
   const client = requireSupabase();
-  const { data, error } = await client.rpc('start_score_run');
+  const { data, error } = await client.rpc('rt_init');
   if (error) throw new Error(mapAuthError(error));
 
   const run = Array.isArray(data) ? data[0] : data;
@@ -173,7 +173,7 @@ export async function submitBestScore(player, score, runProof = null) {
   if (!runProof && score <= (player.bestScore || 0)) return player;
 
   const client = requireSupabase();
-  const { data, error } = await client.rpc('submit_best_score', {
+  const { data, error } = await client.rpc('rt_sync', {
     input_score: score,
     input_run_id: runProof?.runId || null,
     input_duration_ms: runProof?.durationMs || null,

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build --base=./",
-    "build:pages": "vite build --base=./",
+    "build": "vite build --base=./ && node scripts/obfuscate-dist.mjs",
+    "build:pages": "vite build --base=./ && node scripts/obfuscate-dist.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "deploy": "npm run build:pages && gh-pages -d dist"
   },

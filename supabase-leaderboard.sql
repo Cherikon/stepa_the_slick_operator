@@ -91,8 +91,8 @@ exception
 end;
 $$;
 
-drop function if exists public.start_score_run();
-create or replace function public.start_score_run()
+drop function if exists public.rt_init();
+create or replace function public.rt_init()
 returns table(run_id uuid, seed integer, started_at timestamptz)
 language plpgsql
 security definer
@@ -128,8 +128,8 @@ exception
 end;
 $$;
 
-drop function if exists public.submit_best_score(integer);
-create or replace function public.submit_best_score(
+drop function if exists public.rt_sync(integer, uuid, integer, jsonb);
+create or replace function public.rt_sync(
   input_score integer,
   input_run_id uuid,
   input_duration_ms integer,
@@ -266,5 +266,8 @@ end;
 $$;
 
 grant execute on function public.create_profile(text) to authenticated;
-grant execute on function public.start_score_run() to authenticated;
-grant execute on function public.submit_best_score(integer, uuid, integer, jsonb) to authenticated;
+grant execute on function public.rt_init() to authenticated;
+grant execute on function public.rt_sync(integer, uuid, integer, jsonb) to authenticated;
+drop function if exists public.start_score_run();
+drop function if exists public.submit_best_score(integer, uuid, integer, jsonb);
+drop function if exists public."rt-sync"(integer, uuid, integer, jsonb);

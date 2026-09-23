@@ -51,6 +51,35 @@ function playTone(frequency, startTime, duration, options = {}) {
   oscillator.stop(startTime + duration + 0.02);
 }
 
+function playNoise(startTime, duration, options = {}) {
+  const context = getAudioContext();
+  const bufferSize = Math.max(1, Math.floor(context.sampleRate * duration));
+  const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
+  const data = buffer.getChannelData(0);
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const gain = context.createGain();
+  const volume = options.volume ?? 0.04;
+
+  for (let index = 0; index < bufferSize; index += 1) {
+    data[index] = Math.random() * 2 - 1;
+  }
+
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(options.frequency ?? 4200, startTime);
+  filter.Q.setValueAtTime(options.q ?? 8, startTime);
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  source.buffer = buffer;
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(options.destination || context.destination);
+  source.start(startTime);
+  source.stop(startTime + duration + 0.02);
+}
+
 export function startBackgroundMusic() {
   const context = getAudioContext();
   if (musicTimer) return;
@@ -144,6 +173,15 @@ export function playLifeSound() {
   playTone(523.25, now, 0.08, { volume: 0.09, type: 'triangle' });
   playTone(783.99, now + 0.08, 0.08, { volume: 0.09, type: 'triangle' });
   playTone(1046.5, now + 0.16, 0.14, { volume: 0.1, type: 'triangle' });
+}
+
+export function playBeerSound() {
+  const context = getAudioContext();
+  const now = context.currentTime;
+  playTone(392, now, 0.16, { volume: 0.08, slideTo: 587.33, type: 'triangle' });
+  playTone(783.99, now + 0.04, 0.18, { volume: 0.045, slideTo: 987.77, type: 'sine' });
+  playTone(659.25, now + 0.18, 0.14, { volume: 0.07, slideTo: 523.25, type: 'triangle' });
+  playNoise(now + 0.23, 0.12, { volume: 0.025, frequency: 5200, q: 10 });
 }
 
 export function playProblemSound() {

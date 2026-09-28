@@ -84,7 +84,7 @@ ${L}`}class it extends Error{constructor({message:n,code:s,cause:l,name:c}){var 
 
   @media (max-width: 760px) {
     padding:
-      calc(12px + env(safe-area-inset-top, 0px))
+      calc(28px + env(safe-area-inset-top, 0px))
       calc(8px + env(safe-area-inset-right, 0px))
       calc(12px + env(safe-area-inset-bottom, 0px))
       calc(8px + env(safe-area-inset-left, 0px));

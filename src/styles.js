@@ -244,9 +244,9 @@ export const StatusPill = styled.div`
   gap: 5px;
   min-height: 28px;
   padding: 5px 7px;
-  border: 3px solid ${({ $active }) => ($active ? '#fff26a' : '#414765')};
-  color: ${({ $active }) => ($active ? '#fff26a' : '#7d849f')};
-  background: ${({ $active }) => ($active ? '#101629' : '#171b32')};
+  border: 3px solid ${({ $active, $tone }) => ($active ? ($tone === 'beer' ? '#ffcf5a' : '#fff26a') : '#414765')};
+  color: ${({ $active, $tone }) => ($active ? ($tone === 'beer' ? '#ffcf5a' : '#fff26a') : '#7d849f')};
+  background: ${({ $active, $tone }) => ($active ? ($tone === 'beer' ? '#241809' : '#101629') : '#171b32')};
   font-size: 0.52rem;
   line-height: 1.2;
   white-space: nowrap;
@@ -383,6 +383,56 @@ export const Stage = styled.div`
   transform-origin: center center;
 `;
 
+export const TimeSlowOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(90deg, rgba(255, 207, 90, 0.2), rgba(255, 244, 183, 0.08) 42%, rgba(255, 207, 90, 0.18)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0 2px, rgba(255, 207, 90, 0) 2px 9px);
+  animation: beer-time-slow 1200ms steps(8, end) infinite;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  &::before {
+    background:
+      radial-gradient(ellipse at 50% 72%, rgba(255, 207, 90, 0.28), rgba(255, 207, 90, 0) 54%),
+      radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 42%);
+    animation: beer-time-pulse 1500ms steps(6, end) infinite;
+  }
+
+  &::after {
+    opacity: 0.55;
+    background:
+      linear-gradient(90deg, transparent 0 44%, rgba(255, 255, 255, 0.22) 48%, transparent 54%),
+      linear-gradient(90deg, transparent 0 12%, rgba(255, 207, 90, 0.2) 16%, transparent 22%);
+    transform: skewX(-12deg);
+    animation: beer-time-streak 1700ms linear infinite;
+  }
+
+  @keyframes beer-time-slow {
+    0%, 100% { opacity: 0.46; filter: saturate(1.1); }
+    50% { opacity: 0.76; filter: saturate(1.45); }
+  }
+
+  @keyframes beer-time-pulse {
+    0%, 100% { opacity: 0.48; transform: scale(1); }
+    50% { opacity: 0.86; transform: scale(1.04); }
+  }
+
+  @keyframes beer-time-streak {
+    0% { translate: -100% 0; }
+    100% { translate: 100% 0; }
+  }
+`;
+
 export const DropLayer = styled.div`
   position: absolute;
   inset: 0;
@@ -483,6 +533,8 @@ export const HeroWrap = styled.div`
         ? '67, 255, 245'
         : $glow === 'magnet'
           ? '190, 82, 255'
+          : $glow === 'beer'
+            ? '255, 180, 54'
           : '0, 0, 0'};
 
   position: absolute;

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Global } from '@emotion/react';
-import { ArrowLeft, ArrowRight, CircleDollarSign, CircleHelp, Gamepad2, Heart, ListOrdered, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleDollarSign, CircleHelp, Gamepad2, Heart, Hourglass, ListOrdered, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
 import heroImage from './images/hero.png';
 import faviconUrl from './images/favicon.png';
 import beerImage from './images/beer.png';
@@ -53,6 +53,7 @@ import {
   DropItem,
   DropLayer,
   EdgeFlash,
+  TimeSlowOverlay,
   GAME_HEIGHT,
   GAME_WIDTH,
   globalStyles,
@@ -97,8 +98,13 @@ const HERO_Y = GAME_HEIGHT - HERO_HEIGHT - 20;
 const WIN_SCORE = 300;
 const MAGNET_DURATION = 7;
 const SHIELD_DURATION = 10;
+const BEER_SLOW_DURATION = 10;
+const BEER_TIME_SCALE = 0.55;
 const COMPACT_GAME_QUERY = '(max-width: 760px), (pointer: coarse)';
 const COMPACT_DROP_SCALE = 1.1;
+const COMPACT_DROP_SPEED_SCALE = 0.84;
+const COMPACT_SPAWN_INTERVAL_SCALE = 1.12;
+const COMPACT_HERO_SPEED_SCALE = 1.08;
 const MONEY_TYPES = [
   { kind: 'money', label: '1', value: 1, image: money1Image, size: 58, color: '#57d68d', weight: 30 },
   { kind: 'money', label: '5', value: 5, image: money5Image, size: 64, color: '#3ec5ff', weight: 18 },
@@ -143,7 +149,7 @@ const BONUS_GUIDE_ITEMS = [
   { label: HEART_TYPE.label, image: HEART_TYPE.image, description: 'Восстанавливает одну жизнь, но не выше трех.' },
   { label: MAGNET_TYPE.label, image: MAGNET_TYPE.image, description: `Притягивает деньги ${MAGNET_DURATION} секунд.` },
   { label: SHIELD_TYPE.label, image: SHIELD_TYPE.image, description: `Один раз спасает от проблемы в течение ${SHIELD_DURATION} секунд.` },
-  { label: BEER_TYPE.label, image: BEER_TYPE.image, description: 'Ничего не дает и не решает проблем, но делает их чуть менее заметными.' }
+  { label: BEER_TYPE.label, image: BEER_TYPE.image, description: `Замедляет падение предметов на ${BEER_SLOW_DURATION} секунд.` }
 ];
 
 function clamp(value, min, max) {
@@ -188,6 +194,13 @@ function createId() {
   }
 
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getLevelForScore(score) {
+  if (score < 200) return Math.floor(score / 10);
+  if (score < 300) return 20 + Math.floor((score - 200) / 25);
+  if (score < 400) return 24;
+  return 25 + Math.floor((score - 400) / 50);
 }
 
 function getLossMessage(score) {
@@ -278,6 +291,7 @@ function App() {
   const [healPulse, setHealPulse] = useState(0);
   const [magnetTime, setMagnetTime] = useState(0);
   const [shieldTime, setShieldTime] = useState(0);
+  const [beerSlowTime, setBeerSlowTime] = useState(0);
   const [stageScale, setStageScale] = useState(1);
   const [isCompactGame, setIsCompactGame] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(COMPACT_GAME_QUERY).matches
@@ -295,15 +309,17 @@ function App() {
   const lastSubmittedScoreRef = useRef(0);
   const magnetTimeRef = useRef(0);
   const shieldTimeRef = useRef(0);
+  const beerSlowTimeRef = useRef(0);
   const ponosGlowTimeoutRef = useRef(null);
   const compactDropScaleRef = useRef(isCompactGame ? COMPACT_DROP_SCALE : 1);
+  const compactGameRef = useRef(isCompactGame);
   const currentRunRef = useRef(null);
   const runStartTimeRef = useRef(0);
   const inputLogRef = useRef([]);
   const seededRandomRef = useRef(Math.random);
   const isSubmittingRunRef = useRef(false);
 
-  const level = Math.floor(score / 10);
+  const level = getLevelForScore(score);
   const progress = clamp(score / WIN_SCORE, 0, 1);
 
   const showPonosGlow = useCallback(() => {
@@ -347,6 +363,7 @@ function App() {
   }, [level]);
 
   useEffect(() => {
+    compactGameRef.current = isCompactGame;
     compactDropScaleRef.current = isCompactGame ? COMPACT_DROP_SCALE : 1;
   }, [isCompactGame]);
 
@@ -489,8 +506,10 @@ function App() {
     setHealPulse(0);
     setMagnetTime(0);
     setShieldTime(0);
+    setBeerSlowTime(0);
     magnetTimeRef.current = 0;
     shieldTimeRef.current = 0;
+    beerSlowTimeRef.current = 0;
     unlimitedModeRef.current = false;
     lastSubmittedScoreRef.current = 0;
     spawnTimerRef.current = 0;
@@ -675,6 +694,12 @@ function App() {
       const activeDirection = touchDirectionRef.current || keyboardDirection;
       const hasActiveMagnet = magnetTimeRef.current > 0;
       const hasActiveShield = shieldTimeRef.current > 0;
+      const hasActiveBeerSlow = beerSlowTimeRef.current > 0;
+      const isCompact = compactGameRef.current;
+      const gameDelta = hasActiveBeerSlow ? delta * BEER_TIME_SCALE : delta;
+      const heroSpeedScale = isCompact ? COMPACT_HERO_SPEED_SCALE : 1;
+      const dropSpeedScale = isCompact ? COMPACT_DROP_SPEED_SCALE : 1;
+      const spawnIntervalScale = isCompact ? COMPACT_SPAWN_INTERVAL_SCALE : 1;
 
       if (hasActiveMagnet) {
         const nextMagnetTime = Math.max(0, magnetTimeRef.current - delta);
@@ -686,19 +711,24 @@ function App() {
         shieldTimeRef.current = nextShieldTime;
         setShieldTime(nextShieldTime);
       }
+      if (hasActiveBeerSlow) {
+        const nextBeerSlowTime = Math.max(0, beerSlowTimeRef.current - delta);
+        beerSlowTimeRef.current = nextBeerSlowTime;
+        setBeerSlowTime(nextBeerSlowTime);
+      }
 
       setHeroX((current) => {
         const moveDirection = activeDirection;
         setDirection(moveDirection);
-        const nextX = clamp(current + moveDirection * (390 + levelRef.current * 12) * delta, 0, GAME_WIDTH - HERO_WIDTH);
+        const nextX = clamp(current + moveDirection * (390 + levelRef.current * 12) * heroSpeedScale * delta, 0, GAME_WIDTH - HERO_WIDTH);
         heroXRef.current = nextX;
         return nextX;
       });
 
-      spawnTimerRef.current -= delta;
+      spawnTimerRef.current -= gameDelta;
       if (spawnTimerRef.current <= 0) {
         setDrops((current) => [...current, createDrop(levelRef.current, compactDropScaleRef.current, seededRandomRef.current)]);
-        spawnTimerRef.current = Math.max(0.38, 0.95 - levelRef.current * 0.045);
+        spawnTimerRef.current = Math.max(0.38, 0.95 - levelRef.current * 0.045) * spawnIntervalScale;
       }
 
       setDrops((current) => {
@@ -722,15 +752,15 @@ function App() {
             const dropCenter = drop.x + drop.size / 2;
             const pullDistance = heroCenter - dropCenter;
             if (Math.abs(pullDistance) < 280) {
-              nextX = clamp(drop.x + pullDistance * 2.1 * delta, 0, GAME_WIDTH - drop.size);
+              nextX = clamp(drop.x + pullDistance * 2.1 * gameDelta, 0, GAME_WIDTH - drop.size);
             }
           }
 
           const moved = {
             ...drop,
             x: nextX,
-            y: drop.y + drop.speed * delta,
-            rotation: drop.rotation + drop.spin * 95 * delta
+            y: drop.y + drop.speed * dropSpeedScale * gameDelta,
+            rotation: drop.rotation + drop.spin * 95 * gameDelta
           };
           const dropCenter = moved.x + moved.size / 2;
           const caught =
@@ -801,6 +831,9 @@ function App() {
         }
         if (caughtBeer) {
           playBeerSound();
+          beerSlowTimeRef.current = BEER_SLOW_DURATION;
+          setBeerSlowTime(BEER_SLOW_DURATION);
+          setHeroGlow({ tone: 'beer', id: createId() });
         }
         if (magnetBonus) {
           playLifeSound();
@@ -820,9 +853,11 @@ function App() {
         if (caughtPonosProblem) {
           showPonosGlow();
         }
-        if (caughtMoney || caughtHeart || magnetBonus || shieldBonus) {
+        if (caughtMoney || caughtHeart || magnetBonus || shieldBonus || caughtBeer) {
           setBonusText(
-            magnetBonus
+            caughtBeer
+              ? 'slow-mo'
+              : magnetBonus
               ? 'магнит'
               : shieldBonus
                 ? 'щит'
@@ -1240,8 +1275,13 @@ function App() {
               style={{ transform: `translate(-50%, -50%) scale(${stageScale})` }}
               $backgroundImage={fonImage}
             >
-              {(magnetTime > 0 || shieldTime > 0) && (
+              {beerSlowTime > 0 && <TimeSlowOverlay aria-hidden="true" />}
+
+              {(magnetTime > 0 || shieldTime > 0 || beerSlowTime > 0) && (
                 <StatusRow $floating>
+                  {beerSlowTime > 0 && (
+                    <StatusPill $active $tone="beer"><Hourglass size={16} /> Slow-mo {Math.ceil(beerSlowTime)}с</StatusPill>
+                  )}
                   {magnetTime > 0 && (
                     <StatusPill $active>Магнит {Math.ceil(magnetTime)}с</StatusPill>
                   )}

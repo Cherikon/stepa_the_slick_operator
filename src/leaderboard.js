@@ -33,6 +33,9 @@ function mapAuthError(error) {
   if (message.includes('Invalid login credentials')) return 'Неверный email или пароль.';
   if (message.includes('User already registered')) return 'Такой email уже зарегистрирован.';
   if (message.includes('Password should be')) return 'Пароль слишком короткий.';
+  if (message.includes('Email rate limit exceeded')) return 'Писем слишком много. Подожди немного и попробуй снова.';
+  if (message.includes('Auth session missing')) return 'Ссылка для смены пароля устарела или открыта не полностью. Запроси новое письмо.';
+  if (message.includes('New password should be different')) return 'Новый пароль должен отличаться от старого.';
   if (message.includes('nickname_taken')) return 'Такой ник уже занят. Придумай другой.';
   if (message.includes('invalid_nickname')) return 'Ник должен быть от 3 до 16 символов: буквы, цифры, дефис или нижнее подчеркивание.';
   if (message.includes('email_not_confirmed')) return 'В Supabase включено подтверждение почты. Отключи его в Authentication settings или подтверди email.';
@@ -143,6 +146,25 @@ export async function signInPlayer({ email, password }) {
 
   if (error) throw new Error(mapAuthError(error));
   return getCurrentPlayer(data.user);
+}
+
+export async function requestPasswordReset({ email, redirectTo }) {
+  const client = requireSupabase();
+  if (!email.trim()) throw new Error('Введи email, чтобы отправить ссылку для сброса.');
+
+  const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo
+  });
+
+  if (error) throw new Error(mapAuthError(error));
+}
+
+export async function updatePlayerPassword(password) {
+  const client = requireSupabase();
+  if (password.length < 6) throw new Error('Пароль должен быть минимум 6 символов.');
+
+  const { error } = await client.auth.updateUser({ password });
+  if (error) throw new Error(mapAuthError(error));
 }
 
 export async function signOutPlayer() {

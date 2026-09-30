@@ -47,13 +47,22 @@ export const globalStyles = css`
 
 export const Page = styled.main`
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   justify-items: center;
   align-items: start;
-  padding: 24px;
+  padding:
+    calc(24px + env(safe-area-inset-top, 0px))
+    calc(24px + env(safe-area-inset-right, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px))
+    calc(24px + env(safe-area-inset-left, 0px));
 
   @media (max-width: 760px) {
-    padding: 8px;
+    padding:
+      calc(28px + env(safe-area-inset-top, 0px))
+      calc(8px + env(safe-area-inset-right, 0px))
+      calc(12px + env(safe-area-inset-bottom, 0px))
+      calc(8px + env(safe-area-inset-left, 0px));
   }
 `;
 
@@ -284,10 +293,12 @@ export const ProgressFill = styled.div`
 export const StageFrame = styled.div`
   position: relative;
   width: min(100%, calc((100vh - 130px) * ${GAME_WIDTH} / ${GAME_HEIGHT}));
+  width: min(100%, calc((100dvh - 130px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * ${GAME_WIDTH} / ${GAME_HEIGHT}));
   margin-inline: auto;
   aspect-ratio: ${GAME_WIDTH} / ${GAME_HEIGHT};
   min-height: 430px;
   max-height: calc(100vh - 130px);
+  max-height: calc(100dvh - 130px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   overflow: hidden;
   border-radius: 0;
   border: 6px solid #f8f4d8;
@@ -823,6 +834,14 @@ export const LeaderboardPanel = styled.section`
     line-height: 1.9;
   }
 
+  h1 {
+    margin: 0;
+    color: #fff26a;
+    font-size: clamp(1.3rem, 3.8vw, 2.25rem);
+    line-height: 1.2;
+    text-shadow: 3px 3px 0 #000;
+  }
+
   @media (max-width: 760px) {
     min-height: calc(100vh - 88px);
     padding: 14px;
@@ -1009,6 +1028,70 @@ export const Badge = styled.div`
   color: #fff26a;
   font-weight: 800;
   box-shadow: 4px 4px 0 #000;
+`;
+
+export const AuthHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(100%, 560px);
+
+  @media (max-width: 760px) {
+    width: 100%;
+    gap: 8px;
+
+    > div {
+      min-width: 0;
+      font-size: 0.62rem;
+    }
+  }
+`;
+
+export const AuthLinkButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 3px solid #f8f4d8;
+  border-radius: 0;
+  color: #f8f4d8;
+  background: #2f3564;
+  box-shadow: 4px 4px 0 #050711;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.52rem;
+  line-height: 1.25;
+  white-space: nowrap;
+
+  svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: #4650a0;
+  }
+
+  &:active {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0 #050711;
+  }
+
+  &:disabled {
+    opacity: 0.62;
+    cursor: wait;
+    transform: none;
+  }
+
+  @media (max-width: 760px) {
+    min-height: 36px;
+    padding: 7px 8px;
+    font-size: 0.48rem;
+  }
 `;
 
 export const ControlsLine = styled.div`

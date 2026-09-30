@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Global } from '@emotion/react';
-import { ArrowLeft, ArrowRight, CircleDollarSign, CircleHelp, Gamepad2, Heart, Hourglass, ListOrdered, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleDollarSign, CircleHelp, Gamepad2, Heart, Hourglass, KeyRound, ListOrdered, Mail, Menu, Pause, Play, RotateCcw, Shield, Trophy, X } from 'lucide-react';
 import heroImage from './images/hero.png';
 import faviconUrl from './images/favicon.png';
 import beerImage from './images/beer.png';
@@ -39,13 +39,17 @@ import {
   loadLeaderboard,
   onAuthChange,
   registerPlayer,
+  requestPasswordReset,
   signInPlayer,
   signOutPlayer,
   startScoreRun,
-  submitBestScore
+  submitBestScore,
+  updatePlayerPassword
 } from './leaderboard';
 import {
   AuthForm,
+  AuthHeader,
+  AuthLinkButton,
   Badge,
   ButtonRow,
   ControlsLine,
@@ -261,7 +265,30 @@ function createDrop(level, sizeScale = 1, random = Math.random) {
   };
 }
 
+function isResetPasswordRoute() {
+  if (typeof window === 'undefined') return false;
+  const { pathname, hash, search } = window.location;
+  return (
+    /\/reset-password\/?$/.test(pathname) ||
+    hash === '#/reset-password' ||
+    search.includes('reset-password')
+  );
+}
+
+function getResetPasswordRedirectUrl() {
+  if (typeof window === 'undefined') return '';
+  const redirectUrl = new URL(window.location.href);
+  redirectUrl.search = '';
+  redirectUrl.hash = '';
+  if (!redirectUrl.pathname.endsWith('/')) {
+    redirectUrl.pathname = redirectUrl.pathname.replace(/\/[^/]*$/, '/');
+  }
+  redirectUrl.searchParams.set('reset-password', '1');
+  return redirectUrl.toString();
+}
+
 function App() {
+  const isResetPasswordPage = isResetPasswordRoute();
   const [activeView, setActiveView] = useState('play');
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
   const [phase, setPhase] = useState('intro');
@@ -272,7 +299,13 @@ function App() {
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
+  const [resetStatus, setResetStatus] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const [leaders, setLeaders] = useState([]);
   const [leaderboardError, setLeaderboardError] = useState('');
   const [isLoadingLeaders, setIsLoadingLeaders] = useState(false);
@@ -549,6 +582,7 @@ function App() {
   const handleAuthSubmit = useCallback(async (event) => {
     event.preventDefault();
     setAuthError('');
+    setAuthMessage('');
     setIsAuthSubmitting(true);
     try {
       const nextPlayer = authMode === 'signup'
@@ -566,8 +600,50 @@ function App() {
     }
   }, [activeView, authMode, email, nickname, password, refreshLeaderboard]);
 
+  const handlePasswordResetRequest = useCallback(async (event) => {
+    event?.preventDefault();
+    setAuthError('');
+    setAuthMessage('');
+    setIsAuthSubmitting(true);
+    try {
+      await requestPasswordReset({
+        email,
+        redirectTo: getResetPasswordRedirectUrl()
+      });
+      setAuthMessage('Отправили письмо со ссылкой для смены пароля. Проверь почту.');
+    } catch (error) {
+      setAuthError(error.message || 'Не получилось отправить письмо.');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  }, [email]);
+
+  const handleResetPasswordSubmit = useCallback(async (event) => {
+    event.preventDefault();
+    setResetError('');
+    setResetStatus('');
+
+    if (resetPassword !== resetPasswordConfirm) {
+      setResetError('Пароли не совпадают.');
+      return;
+    }
+
+    setIsResetSubmitting(true);
+    try {
+      await updatePlayerPassword(resetPassword);
+      setResetPassword('');
+      setResetPasswordConfirm('');
+      setResetStatus('Пароль обновлен. Теперь можно вернуться в игру и войти с новым паролем.');
+    } catch (error) {
+      setResetError(error.message || 'Не получилось обновить пароль.');
+    } finally {
+      setIsResetSubmitting(false);
+    }
+  }, [resetPassword, resetPasswordConfirm]);
+
   const handleSignOut = useCallback(async () => {
     setAuthError('');
+    setAuthMessage('');
     try {
       await signOutPlayer();
       setPlayer(null);
@@ -923,9 +999,68 @@ function App() {
     }
 
     if (!player || phase === 'auth') {
+      if (authMode === 'forgot') {
+        return (
+          <IntroPanel>
+            <AuthHeader>
+              <Badge><Gamepad2 size={18} /> Игрок</Badge>
+            </AuthHeader>
+            <h1>Вход</h1>
+            <p>
+              Для восстановления пароля введи email, привязанный к аккаунту.
+              Мы отправим письмо со ссылкой на смену пароля.
+            </p>
+            <AuthForm onSubmit={handlePasswordResetRequest}>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="email@example.com"
+                autoComplete="email"
+              />
+              <ButtonRow>
+                <PrimaryButton type="submit" disabled={isAuthSubmitting || !isLeaderboardConfigured}>
+                  <Mail size={20} /> {isAuthSubmitting ? 'Отправляем...' : 'Отправить ссылку'}
+                </PrimaryButton>
+                <PrimaryButton
+                  type="button"
+                  onClick={() => {
+                    setAuthError('');
+                    setAuthMessage('');
+                    setAuthMode('signin');
+                  }}
+                >
+                  <Gamepad2 size={20} /> Назад ко входу
+                </PrimaryButton>
+              </ButtonRow>
+            </AuthForm>
+            {authMessage && <ControlsLine $mobileVisible>{authMessage}</ControlsLine>}
+            {authError && <ControlsLine $mobileVisible>{authError}</ControlsLine>}
+            {!isLeaderboardConfigured && (
+              <ControlsLine $mobileVisible>Добавь VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env, чтобы включить аккаунты.</ControlsLine>
+            )}
+          </IntroPanel>
+        );
+      }
+
       return (
         <IntroPanel>
-          <Badge><Gamepad2 size={18} /> Игрок</Badge>
+          <AuthHeader>
+            <Badge><Gamepad2 size={18} /> Игрок</Badge>
+            {authMode === 'signin' && (
+              <AuthLinkButton
+                type="button"
+                disabled={isAuthSubmitting || !isLeaderboardConfigured}
+                onClick={() => {
+                  setAuthError('');
+                  setAuthMessage('');
+                  setAuthMode('forgot');
+                }}
+              >
+                <Mail size={16} /> Забыли пароль?
+              </AuthLinkButton>
+            )}
+          </AuthHeader>
           <h1>{authMode === 'signup' ? 'Регистрация' : 'Вход'}</h1>
           <p>
             В аккаунте хранится лучший результат, поэтому можно играть с телефона,
@@ -963,6 +1098,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setAuthError('');
+                  setAuthMessage('');
                   setAuthMode((mode) => (mode === 'signup' ? 'signin' : 'signup'));
                 }}
               >
@@ -970,6 +1106,7 @@ function App() {
               </PrimaryButton>
             </ButtonRow>
           </AuthForm>
+          {authMessage && <ControlsLine $mobileVisible>{authMessage}</ControlsLine>}
           {authError && <ControlsLine $mobileVisible>{authError}</ControlsLine>}
           {!isLeaderboardConfigured && (
             <ControlsLine $mobileVisible>Добавь VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env, чтобы включить аккаунты.</ControlsLine>
@@ -1042,11 +1179,13 @@ function App() {
     return null;
   }, [
     authError,
+    authMessage,
     authMode,
     continueGame,
     defeatQuote,
     email,
     handleAuthSubmit,
+    handlePasswordResetRequest,
     isAuthReady,
     isAuthSubmitting,
     nickname,
@@ -1057,6 +1196,60 @@ function App() {
     score,
     togglePause
   ]);
+
+  if (isResetPasswordPage) {
+    return (
+      <>
+        <Global styles={globalStyles} />
+        <Page>
+          <Shell>
+            <LeaderboardPanel>
+              <Badge><KeyRound size={18} /> Смена пароля</Badge>
+              <h1>Новый пароль</h1>
+              <p>
+                Придумай новый пароль для аккаунта. Эта страница работает после перехода
+                по ссылке из письма.
+              </p>
+              <AuthForm onSubmit={handleResetPasswordSubmit}>
+                <input
+                  type="password"
+                  value={resetPassword}
+                  onChange={(event) => setResetPassword(event.target.value)}
+                  placeholder="новый пароль"
+                  autoComplete="new-password"
+                />
+                <input
+                  type="password"
+                  value={resetPasswordConfirm}
+                  onChange={(event) => setResetPasswordConfirm(event.target.value)}
+                  placeholder="повторить пароль"
+                  autoComplete="new-password"
+                />
+                <ButtonRow>
+                  <PrimaryButton type="submit" disabled={isResetSubmitting || !isLeaderboardConfigured}>
+                    <KeyRound size={20} /> {isResetSubmitting ? 'Сохраняем...' : 'Сменить пароль'}
+                  </PrimaryButton>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() => {
+                      window.location.href = new URL('.', window.location.href).toString();
+                    }}
+                  >
+                    <Gamepad2 size={20} /> В игру
+                  </PrimaryButton>
+                </ButtonRow>
+              </AuthForm>
+              {resetStatus && <ControlsLine $mobileVisible>{resetStatus}</ControlsLine>}
+              {resetError && <ControlsLine $mobileVisible>{resetError}</ControlsLine>}
+              {!isLeaderboardConfigured && (
+                <ControlsLine $mobileVisible>Добавь VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env, чтобы включить аккаунты.</ControlsLine>
+              )}
+            </LeaderboardPanel>
+          </Shell>
+        </Page>
+      </>
+    );
+  }
 
   return (
     <>
@@ -1374,3 +1567,9 @@ function syncFavicon() {
 
 syncFavicon();
 createRoot(document.getElementById('root')).render(<App />);
+
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+  });
+}

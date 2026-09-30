@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STEPA QUEST</title>
+    <script>
+      (function () {
+        var path = window.location.pathname;
+        var resetPath = /\/reset-password\/?$/;
+
+        if (resetPath.test(path)) {
+          var appRoot = path.replace(resetPath, '/') || '/';
+          var target = window.location.origin + appRoot + '?reset-password=1' + window.location.hash;
+          window.location.replace(target);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <h1>404</h1>
+    <p>Страница не найдена.</p>
+  </body>
+</html>
